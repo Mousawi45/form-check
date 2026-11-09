@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Form Check Live</title>
+<meta name="description" content="Live rep counting and form checks from your phone camera, for the Daily Vitals gym tracker.">
+<meta name="theme-color" content="#0B0D10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Form Check">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<style>
+/* Layout: three screens (setup, live camera, summary). Single dark look on purpose: it is a camera app used at arm's length in a gym. */
+:root{
+  --bg:#0B0D10; --surface:#15181D; --surface-2:#1D2128; --ink:#F2F4F7; --ink-2:#9AA3B0; --line:#2A3039;
+  --accent:#4AA2FF; --on-accent:#04101F; --go:#3DD68C; --on-go:#04140A; --part:#FFB23E; --on-part:#1B1006; --flag:#FF6464;
+  --scrim:rgba(5,7,10,.62);
+  --f:"Archivo","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f);-webkit-tap-highlight-color:transparent}
+body{font-size:16px;line-height:1.4}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.screen{min-height:100%;padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(110px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.brand h1{margin:0;font-weight:900;font-stretch:120%;font-size:28px;letter-spacing:-.01em;line-height:1}
+.brand h1 b{color:var(--go);font-weight:900}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-2)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+label.f{font-size:13px;font-weight:700;color:var(--ink-2)}
+select{width:100%;min-height:54px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2);padding:0 14px;font-weight:800;font-size:18px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink-2) 50%),linear-gradient(135deg,var(--ink-2) 50%,transparent 50%);background-position:calc(100% - 22px) 50%,calc(100% - 16px) 50%;background-size:6px 6px;background-repeat:no-repeat}
+.tip{font-size:15px;margin:0}
+.checks{margin:0;padding-left:20px;font-size:14px;color:var(--ink);display:flex;flex-direction:column;gap:4px}
+.checks small{color:var(--ink-2)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface-2);border:1.5px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{min-height:42px;border:0;border-radius:9px;background:transparent;font-weight:700;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt-row{display:flex;flex-direction:column;gap:6px;min-width:0}
+.note{font-size:13px;color:var(--ink-2);margin:0}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:linear-gradient(to top,var(--bg) 70%,transparent);padding:18px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.dock .wrap{flex-direction:row}
+.btn{flex:1;min-height:58px;border-radius:16px;border:0;font-weight:900;font-stretch:115%;font-size:20px;letter-spacing:.02em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--surface-2);color:var(--ink);border:1.5px solid var(--line)}
+.btn.go{background:var(--go);color:var(--on-go);border-color:var(--go)}
+.btn.stop{background:var(--flag);color:#1A0506;border-color:var(--flag)}
+.btn.small{min-height:46px;font-size:16px;flex:none;padding:0 16px}
+.btn[disabled]{opacity:.5}
+.status{font-size:14px;color:var(--ink-2);min-height:20px;margin:0}
+.status.err{color:var(--flag)}
+
+/* live */
+#live{position:fixed;inset:0;background:#000;z-index:10}
+#live video,#live canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#live.mirror video,#live.mirror canvas{transform:scaleX(-1)}
+.hud{position:absolute;left:0;right:0;top:0;padding:calc(10px + env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:8px;background:linear-gradient(to bottom,rgba(0,0,0,.72),transparent);pointer-events:none}
+.hud-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.hud-ex{font-weight:800;font-size:15px;max-width:60%}
+.hud-ex small{display:block;color:var(--ink-2);font-weight:600;font-size:12.5px}
+.reps{font-weight:900;font-stretch:125%;font-size:84px;line-height:.85;font-variant-numeric:tabular-nums;text-align:right;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.reps small{display:block;font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-2);text-shadow:none;margin-top:6px}
+.gauge{align-self:flex-start;display:inline-flex;align-items:baseline;gap:8px;background:rgba(0,0,0,.55);border-radius:12px;padding:6px 10px;font-variant-numeric:tabular-nums}
+.gauge b{font-size:26px;font-weight:900;font-stretch:115%}
+.gauge span{font-size:12.5px;color:var(--ink-2);font-weight:700}
+.gauge.ok b{color:var(--go)}
+.last{align-self:flex-start;border-radius:12px;padding:8px 12px;font-weight:800;font-size:16px;max-width:100%}
+.last.g{background:var(--go);color:var(--on-go)} .last.p{background:var(--part);color:var(--on-part)} .last.f{background:var(--flag);color:#1A0506}
+.banner{position:absolute;left:50%;transform:translateX(-50%);top:46%;background:var(--scrim);border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-weight:700;font-size:15px;text-align:center;max-width:calc(100% - 32px)}
+.count{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.count div{text-align:center;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+.count b{display:block;font-weight:900;font-stretch:125%;font-size:150px;line-height:.9}
+.count span{font-weight:800;font-size:18px}
+.live-dock{position:absolute;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;gap:10px;align-items:center;background:linear-gradient(to top,rgba(0,0,0,.75),transparent)}
+.fps{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;min-width:52px}
+
+/* summary */
+.big{font-weight:900;font-stretch:125%;font-size:64px;line-height:.85;font-variant-numeric:tabular-nums}
+.big small{font-size:20px;color:var(--ink-2);font-stretch:100%;margin-left:6px}
+.split{display:flex;gap:6px;flex-wrap:wrap}
+.split span{border-radius:999px;padding:5px 12px;font-weight:800;font-size:14px}
+.split .g{background:var(--go);color:var(--on-go)} .split .p{background:var(--part);color:var(--on-part)} .split .n{background:var(--surface-2)}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px}
+.chip{position:relative;border-radius:12px;padding:6px 4px;text-align:center;background:color-mix(in srgb,var(--go) 16%,var(--surface));border:1.5px solid color-mix(in srgb,var(--go) 55%,transparent);font-variant-numeric:tabular-nums}
+.chip b{display:block;font-weight:900;font-size:20px;line-height:1}
+.chip small{display:block;font-size:12px;font-weight:700;color:var(--ink-2)}
+.chip.p{background:color-mix(in srgb,var(--part) 18%,var(--surface));border-color:color-mix(in srgb,var(--part) 70%,transparent)}
+.chip.f::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--flag)}
+.issues{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.issues li{display:flex;gap:8px;font-size:14.5px;border-radius:10px;padding:9px 10px;background:var(--surface-2)}
+.issues li i{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--go)}
+.issues li.p i{background:var(--part)} .issues li.f i{background:var(--flag)}
+.chart{width:100%;height:auto;display:block}
+.chart .ln{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round}
+.chart .tg{stroke:var(--flag);stroke-width:1.5;stroke-dasharray:5 4}
+.chart .tz{fill:color-mix(in srgb,var(--go) 14%,transparent)}
+.chart .ax{fill:var(--ink-2);font-size:10px;font-family:var(--f)}
+.chart .dg{fill:var(--go);stroke:var(--surface);stroke-width:1.5} .chart .dp{fill:var(--part);stroke:var(--surface);stroke-width:1.5}
+.code{width:100%;min-height:70px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font:13px ui-monospace,SFMono-Regular,Menlo,monospace;padding:10px;resize:none;word-break:break-all}
+.steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+a{color:var(--accent);font-weight:700}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<section id="setup" class="screen">
+  <div class="wrap">
+    <div class="brand"><h1>FORM CHECK <b>LIVE</b></h1><span class="eyebrow">for Daily Vitals</span></div>
+    <div class="card">
+      <label class="f" for="exSel">Exercise</label>
+      <select id="exSel"></select>
+      <p class="tip" id="exTip"></p>
+      <ul class="checks" id="exChecks"></ul>
+    </div>
+    <div class="card">
+      <div class="opts">
+        <div class="opt-row"><span class="f" style="font-size:13px;font-weight:700;color:var(--ink-2)">Camera</span><div class="seg" role="group" aria-label="Camera"><button type="button" data-cam="environment" aria-pressed="true">Back</button><button type="button" data-cam="user" aria-pressed="false">Front</button></div></div>
+        <div class="opt-row"><span style="font-size:13px;font-weight:700;color:var(--ink-2)">Sound</span><div class="seg" role="group" aria-label="Sound"><button type="button" data-snd="voice" aria-pressed="true">Voice</button><button type="button" data-snd="beep" aria-pressed="false">Beeps</button><button type="button" data-snd="off" aria-pressed="false">Off</button></div></div>
+      </div>
+      <p class="note">Voice says each rep number, and “partial” or “check form” when a rep misses. Prop the phone up, tap Start, and you get 5 seconds to get into position.</p>
+    </div>
+    <p class="status" id="setupStatus" aria-live="polite"></p>
+  </div>
+  <div class="dock"><div class="wrap"><button type="button" class="btn go" id="startBtn">Start</button></div></div>
+</section>
+
+<section id="live" hidden aria-label="Live camera">
+  <video id="vid" playsinline muted autoplay></video>
+  <canvas id="ov"></canvas>
+  <div class="hud">
+    <div class="hud-top">
+      <div class="hud-ex" id="hudEx"></div>
+      <div class="reps" id="hudReps">0<small>reps</small></div>
+    </div>
+    <div class="gauge" id="gauge"><b id="gVal">–</b><span id="gLbl"></span></div>
+    <div class="last" id="last" hidden></div>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+  <div class="count" id="count" hidden><div><b id="countN">5</b><span>Get into position</span></div></div>
+  <div class="live-dock"><span class="fps" id="fps"></span><button type="button" class="btn stop" id="stopBtn">Stop set</button></div>
+</section>
+
+<section id="summary" class="screen" hidden>
+  <div class="wrap">
+    <div class="brand"><h1>SET <b>DONE</b></h1><span class="eyebrow" id="sumEx"></span></div>
+    <div class="card" id="sumCard"></div>
+    <div class="card">
+      <span class="eyebrow">Save it in Daily Vitals</span>
+      <ol class="steps"><li>Tap <b>Copy result</b>.</li><li>Open Daily Vitals → Gym, on this exercise.</li><li>Paste into <b>Paste a live result</b>. It fills your reps and saves the check with the set.</li></ol>
+      <textarea class="code" id="code" readonly aria-label="Result code"></textarea>
+      <div class="row"><button type="button" class="btn small go" id="copyBtn">Copy result</button><a class="btn small" id="dvLink" href="https://claude.ai/artifact/79HREb7uoFQKNjZaryAH33#gym" target="_blank" rel="noopener" style="text-decoration:none">Open Daily Vitals</a></div>
+      <p class="status" id="copyStatus" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="dock"><div class="wrap"><button type="button" class="btn" id="changeBtn">Change exercise</button><button type="button" class="btn go" id="nextBtn">Next set</button></div></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js" defer></script>
+<script src="pose-runtime.js" defer></script>
+<script src="form-engine.js" defer></script>
+<script src="exercises.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>
