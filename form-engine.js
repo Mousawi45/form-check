@@ -36,8 +36,31 @@
   };
   function sigIdx(name, s) { var g = SIG[name].need, out = []; g.forEach(function (j) { var v = KP[j]; out.push(typeof v === 'number' ? v : v[s]); }); return out; }
 
-  /* ---------- rules ---------- */
-  function C(code, label, test, partial) { return { code:code, label:label, test:test, partial:!!partial }; }
+  /* ---------- rules ----------
+     Every check carries its evidence level and sources (see the Exercise Technique Evidence report).
+     must = the stretched (or loaded) end; missing it makes the rep a partial.
+     nice = the squeezed end; missing it makes a stretch partial (still counts), unless the rep falls under `floor`.
+     flag = form fault that changes the target muscle or adds risk.  cue = the plan's own cue, little or no growth evidence. */
+  var SRC = {
+    pallares21:{ a:'Pallarés 2021', d:'10.1111/sms.14006' }, kassiano23r:{ a:'Kassiano 2023 (review)', d:'10.1519/JSC.0000000000004415' },
+    wolf25:{ a:'Wolf 2025', d:'10.7717/peerj.18904' }, mcmahon26:{ a:'McMahon 2026', d:'10.1519/JSC.0000000000005561' },
+    varovic25:{ a:'Varovic 2025', d:'10.1055/a-2615-4935' }, schoenfeld15:{ a:'Schoenfeld 2015', d:'10.1007/s40279-015-0304-0' },
+    amdi25:{ a:'Amdi & King 2025', d:'10.1080/02640414.2025.2535198' }, kubo19:{ a:'Kubo 2019', d:'10.1007/s00421-019-04181-y' },
+    bloom13:{ a:'Bloomquist 2013', d:'10.1007/s00421-013-2642-7' }, fry03:{ a:'Fry 2003', d:'10.1519/1533-4287(2003)017%3C0629:eokpoh%3E2.0.co;2' },
+    pedrosa22:{ a:'Pedrosa 2022', d:'10.1080/17461391.2021.1927199' }, pedrosa23:{ a:'Pedrosa 2023', d:'10.3390/sports11020039' },
+    havers25:{ a:'Havers 2025', d:'10.1002/ejsc.70087' }, pinto12:{ a:'Pinto 2012', d:'10.1519/JSC.0b013e31823a3b15' },
+    morin25:{ a:'Morin 2025', d:'10.1519/JSC.0000000000005159' }, crawford25:{ a:'Crawford 2025', d:'10.1249/MSS.0000000000003701' },
+    plotkin23:{ a:'Plotkin 2023', d:'10.3389/fphys.2023.1279170' }, maeo21:{ a:'Maeo 2021', d:'10.1249/MSS.0000000000002523' },
+    maeo23:{ a:'Maeo 2023', d:'10.1080/17461391.2022.2100279' }, kassiano23c:{ a:'Kassiano 2023 (calves)', d:'10.1519/JSC.0000000000004460' },
+    kinoshita23:{ a:'Kinoshita 2023', d:'10.3389/fphys.2023.1272106' }, larsen25:{ a:'Larsen 2025', d:'10.3389/fphys.2025.1611468' },
+    difonza26:{ a:'Di Fonza 2026', d:'10.3390/jfmk11030315' }, augustin25:{ a:'Augustin 2025', d:'10.70252/GDBL2230' },
+    yue26:{ a:'Yue 2026', d:'10.2196/102399' }, schoenfeld20:{ a:'Schoenfeld & Grgic 2020', d:'10.1177/2050312120901559' }
+  };
+  function chk(kind, code, label, test, ev, src, floor) { return { code:code, label:label, test:test, kind:kind, partial:kind === 'must' || kind === 'nice', ev:ev || 'low', src:src || [], floor:floor || null }; }
+  function M(code, label, test, ev, src) { return chk('must', code, label, test, ev, src); }
+  function N(code, label, test, floor, ev, src) { return chk('nice', code, label, test, ev, src, floor); }
+  function F(code, label, test, ev, src) { return chk('flag', code, label, test, ev, src); }
+  function Q(code, label, test, ev, src) { return chk('cue', code, label, test, ev, src); }
   var V_SIDE = 'side', V_FRONT = 'front';
   var TIP = {
     side:'Film from your side, phone about hip height and 2–3 m away, whole body in frame. The side nearest the camera is measured.',
@@ -45,50 +68,81 @@
     front:'Film from the front, phone at chest height and 2–3 m away, both arms and your hips in frame.'
   };
   function R(o) { return o; }
-  var SQUAT = R({ view:V_SIDE, sig:'thigh', ext:'min', unit:'°', what:'thigh angle', zero:'parallel', prom:22, ecc:'to',
-    checks:[C('depth', 'Thighs at least parallel', function (r) { return r.ext <= 5; }, true), C('stand', 'Stand all the way up', function (r) { return r.aux.kneeTop >= 150; }, true)],
-    aux:{ kneeTop:['knee', 'maxAfter'] }, show:function (v) { return (v > 0 ? '+' : '') + Math.round(v) + '°'; }, target:5, better:'lower' });
-  var LEGPRESS = R({ view:V_SIDE, sig:'knee', ext:'min', unit:'°', what:'knee angle', prom:25, ecc:'to',
-    checks:[C('depth', 'Knees to about 90°', function (r) { return r.ext <= 95; }, true), C('press', 'Press most of the way out', function (r) { return r.other >= 135; }, true), C('lock', 'Knees locked out at the top', function (r) { return r.other < 172; })],
-    target:95, better:'lower' });
-  var LUNGE = R({ view:V_SIDE, sig:'kneeMin', ext:'min', unit:'°', what:'front knee angle', prom:22, ecc:'to',
-    checks:[C('depth', 'Front knee to about 90°', function (r) { return r.ext <= 100; }, true), C('stand', 'Stand back up', function (r) { return r.other >= 150; }, true)], target:100, better:'lower' });
-  var HINGE = R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:25, ecc:'to',
-    checks:[C('depth', 'Hips back to a hamstring stretch', function (r) { return r.ext <= 115; }, true), C('stand', 'Stand tall at the top', function (r) { return r.other >= 160; }, true), C('squat', 'Knees bent too much (turning it into a squat)', function (r) { return r.aux.kneeAt >= 130; })],
-    aux:{ kneeAt:['knee', 'atExt'] }, target:115, better:'lower' });
-  var THRUST = R({ view:V_SIDE, sig:'hip', ext:'max', unit:'°', what:'hip angle', prom:22, ecc:'from',
-    checks:[C('top', 'Hips to a straight line', function (r) { return r.ext >= 165; }, true), C('squeeze', 'Squeeze about 1 s at the top', function (r) { return r.holdExt >= 0.6; }), C('shin', 'Shins about vertical at the top', function (r) { return r.aux.shinAt <= 22; })],
-    aux:{ shinAt:['shin', 'atExt'] }, target:165, better:'higher' });
+  var ROMSRC = ['pallares21', 'kassiano23r', 'wolf25'];
+  var TEMPO = Q('tempo', 'Lowered in under 1 s (your plan: 2–3 s)', function (r) { return r.ecc == null || r.ecc >= 1.0; }, 'strong', ['schoenfeld15', 'amdi25']);
+  var SQUEEZE = Q('squeeze', 'No 1-second squeeze', function (r) { return r.holdExt >= 0.6; }, 'low', []);
+  var SQUAT = R({ view:V_SIDE, sig:'thigh', ext:'min', unit:'°', what:'thigh angle', prom:22, ecc:'to', target:5, better:'lower',
+    checks:[M('depth', 'Thighs at least parallel', function (r) { return r.ext <= 5; }, 'moderate', ['kubo19', 'bloom13']),
+      N('stand', 'Stand all the way up', function (r) { return r.aux.kneeTop >= 150; }, function (r) { return r.aux.kneeTop >= 125; }, 'low', ROMSRC)],
+    aux:{ kneeTop:['knee', 'maxAfter'] } });
+  var LEGPRESS = R({ view:V_SIDE, sig:'knee', ext:'min', unit:'°', what:'knee angle', prom:25, ecc:'to', target:95, better:'lower',
+    checks:[M('depth', 'Knees to about 90°', function (r) { return r.ext <= 95; }, 'low', ['bloom13', 'pedrosa22']),
+      N('press', 'Press most of the way out', function (r) { return r.other >= 135; }, function (r) { return r.other >= 115; }, 'low', ROMSRC),
+      Q('lock', 'Knees locked out (safety cue)', function (r) { return r.other < 172; }, 'low', [])] });
+  var LUNGE = R({ view:V_SIDE, sig:'kneeMin', ext:'min', unit:'°', what:'front knee angle', prom:22, ecc:'to', target:100, better:'lower',
+    checks:[M('depth', 'Front knee to about 90°', function (r) { return r.ext <= 100; }, 'low', ['kubo19', 'bloom13']),
+      N('stand', 'Stand back up', function (r) { return r.other >= 150; }, function (r) { return r.other >= 125; }, 'low', ROMSRC)] });
+  var HINGE_SQUAT = F('squat', 'Knees bent too much (turns it into a squat)', function (r) { return r.aux.kneeAt >= 130; }, 'low', ['morin25', 'crawford25']);
+  var HINGE = R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:25, ecc:'to', target:115, better:'lower',
+    checks:[M('depth', 'Hips back to a hamstring stretch', function (r) { return r.ext <= 115; }, 'low', ['morin25', 'crawford25']),
+      N('stand', 'Stand tall at the top', function (r) { return r.other >= 160; }, function (r) { return r.other >= 140; }, 'low', ROMSRC), HINGE_SQUAT],
+    aux:{ kneeAt:['knee', 'atExt'] } });
+  var THRUST = R({ view:V_SIDE, sig:'hip', ext:'max', unit:'°', what:'hip angle', prom:22, ecc:'from', target:165, better:'higher',
+    checks:[M('top', 'Hips to a straight line', function (r) { return r.ext >= 165; }, 'moderate', ['plotkin23']), SQUEEZE,
+      Q('shin', 'Shins not vertical at the top', function (r) { return r.aux.shinAt <= 22; }, 'low', [])],
+    aux:{ shinAt:['shin', 'atExt'] } });
   var CURLPAT = function (o) { return R(Object.assign({ view:V_SIDE, sig:'elbow', ext:'min', unit:'°', what:'elbow angle', prom:35, ecc:'from', target:70, better:'lower',
-    checks:[C('top', 'Curl all the way up', function (r) { return r.ext <= 70; }, true), C('bottom', 'Lower to straight arms', function (r) { return r.other >= 145; }, true), C('drift', 'Elbows drifting forward', function (r) { return r.aux.uarm <= 25; }), C('swing', 'Swinging the body', function (r) { return r.aux.torso <= 10; })],
+    checks:[M('bottom', 'Lower to straight arms', function (r) { return r.other >= 145; }, 'moderate', ['pedrosa23', 'havers25', 'pinto12']),
+      N('top', 'Curl all the way up', function (r) { return r.ext <= 70; }, function (r) { return r.ext <= 100; }, 'moderate', ['pedrosa23', 'havers25']),
+      Q('drift', 'Elbows drifting forward', function (r) { return r.aux.uarm <= 25; }, 'moderate', ['augustin25']),
+      Q('swing', 'Swinging the body', function (r) { return r.aux.torso <= 10; }, 'moderate', ['augustin25'])],
     aux:{ uarm:['uarm', 'range'], torso:['torso', 'range'] } }, o || {})); };
-  var PRESS = function (o) { return R(Object.assign({ view:V_SIDE, sig:'elbow', ext:'min', unit:'°', what:'elbow angle', prom:30, ecc:'to', target:100, better:'lower',
-    checks:[C('depth', 'Lower to a chest stretch', function (r) { return r.ext <= 100; }, true), C('lockout', 'Press until nearly straight', function (r) { return r.other >= 150; }, true)] }, o || {})); };
-  var tempoCheck = function (sec) { return C('tempo', 'Lowering faster than ' + sec + ' s', function (r) { return r.ecc == null || r.ecc >= sec * 0.75; }); };
+  var PRESS_DEPTH = M('depth', 'Lower to a chest stretch', function (r) { return r.ext <= 100; }, 'low', ['wolf25']);
+  var PRESS_LOCK = N('lockout', 'Press until nearly straight', function (r) { return r.other >= 150; }, function (r) { return r.other >= 125; }, 'low', ROMSRC);
+  var PRESS = function (o) { return R(Object.assign({ view:V_SIDE, sig:'elbow', ext:'min', unit:'°', what:'elbow angle', prom:30, ecc:'to', target:100, better:'lower', tip:'sideLow',
+    checks:[PRESS_DEPTH, PRESS_LOCK] }, o || {})); };
   var VPRESS = R({ view:V_SIDE, sig:'elbow', ext:'max', unit:'°', what:'elbow angle', prom:30, ecc:'from', target:150, better:'higher',
-    checks:[C('lockout', 'Press until nearly straight overhead', function (r) { return r.ext >= 150; }, true), C('bottom', 'Lower to chin height', function (r) { return r.other <= 100; }, true), tempoCheck(2), C('arch', 'Arching off the pad', function (r) { return r.aux.torso <= 12; })],
+    checks:[M('bottom', 'Lower to chin height', function (r) { return r.other <= 100; }, 'low', ROMSRC),
+      N('lockout', 'Press until nearly straight overhead', function (r) { return r.ext >= 150; }, function (r) { return r.ext >= 125; }, 'low', ROMSRC), TEMPO,
+      F('arch', 'Arching off the pad (turns it into an incline press)', function (r) { return r.aux.torso <= 12; }, 'low', [])],
     aux:{ torso:['torso', 'range'] } });
+  var ROW_REACH = M('reach', 'Return to a full reach', function (r) { return r.other >= 145; }, 'low', ['wolf25']);
+  var ROW_PULL = N('pull', 'Pull elbows back past your torso', function (r) { return r.ext <= 100; }, function (r) { return r.ext <= 125; }, 'low', ['difonza26']);
   var ROW = function (o) { return R(Object.assign({ view:V_SIDE, sig:'elbow', ext:'min', unit:'°', what:'elbow angle', prom:30, ecc:'from', target:100, better:'lower',
-    checks:[C('pull', 'Pull elbows back past your torso', function (r) { return r.ext <= 100; }, true), C('reach', 'Return to a full reach', function (r) { return r.other >= 145; }, true)] }, o || {})); };
+    checks:[ROW_REACH, ROW_PULL] }, o || {})); };
+  var PULL_STRETCH = M('stretch', 'Full stretch at the top', function (r) { return r.other >= 150; }, 'low', ['wolf25']);
+  var PULL_LEAN = F('lean', 'Leaning back too far', function (r) { return r.aux.lean <= 30; }, 'low', ['difonza26']);
   var VPULL = function (o) { return R(Object.assign({ view:V_SIDE, sig:'elbow', ext:'min', unit:'°', what:'elbow angle', prom:35, ecc:'from', target:85, better:'lower',
-    checks:[C('pull', 'Pull to the upper chest', function (r) { return r.ext <= 85; }, true), C('stretch', 'Full stretch at the top', function (r) { return r.other >= 150; }, true)] }, o || {})); };
+    checks:[PULL_STRETCH, N('pull', 'Pull to the upper chest', function (r) { return r.ext <= 85; }, function (r) { return r.ext <= 115; }, 'low', ['difonza26'])] }, o || {})); };
   var FLY = function (o) { return R(Object.assign({ view:V_FRONT, sig:'wristSep', ext:'min', unit:'×', what:'hand gap (shoulder widths)', rel:true, prom:0.35, ecc:'from', better:'lower',
-    checks:[C('elbow', 'Elbow angle changing (turning it into a press)', function (r) { return r.aux.elbow <= 30; })], aux:{ elbow:['elbowMin', 'range'] } }, o || {})); };
+    checks:[F('elbow', 'Elbow angle changing (turns it into a press)', function (r) { return r.aux.elbow <= 30; }, 'low', [])], aux:{ elbow:['elbowMin', 'range'] } }, o || {})); };
   var REAR = R({ view:V_FRONT, sig:'wristSep', ext:'max', unit:'×', what:'hand gap (shoulder widths)', rel:true, prom:0.35, ecc:'from', better:'higher', checks:[] });
   var LATERAL = function (sig) { return R({ view:V_FRONT, sig:sig, ext:'max', unit:'°', what:'arm angle from your side', prom:30, ecc:'from', target:70, better:'higher',
-    checks:[C('height', 'Raise to shoulder height', function (r) { return r.ext >= 70; }, true), C('high', 'Raised above shoulder height', function (r) { return r.ext < 110; }), tempoCheck(1.5), C('swing', 'Swinging the body', function (r) { return r.aux.torso <= 10; })],
+    checks:[N('height', 'Raise to about shoulder height', function (r) { return r.ext >= 70; }, function (r) { return r.ext >= 45; }, 'low', ['larsen25']),
+      F('high', 'Raised well above shoulder height', function (r) { return r.ext < 110; }, 'low', []), TEMPO,
+      F('swing', 'Swinging the body', function (r) { return r.aux.torso <= 10; }, 'low', [])],
     aux:{ torso:['torso', 'range'] } }); };
   var PUSHDOWN = R({ view:V_SIDE, sig:'elbow', ext:'max', unit:'°', what:'elbow angle', prom:30, ecc:'from', target:160, better:'higher',
-    checks:[C('lockout', 'Push to fully straight', function (r) { return r.ext >= 160; }, true), C('return', 'Let forearms rise past horizontal', function (r) { return r.other <= 100; }, true), C('drift', 'Elbows drifting from your sides', function (r) { return r.aux.uarm <= 20; }), C('lean', 'Leaning into it', function (r) { return r.aux.torso <= 12; })],
+    checks:[M('return', 'Let forearms rise past horizontal', function (r) { return r.other <= 100; }, 'moderate', ['maeo23', 'kassiano23r']),
+      N('lockout', 'Push to fully straight', function (r) { return r.ext >= 160; }, function (r) { return r.ext >= 135; }, 'low', ROMSRC),
+      Q('drift', 'Elbows drifting from your sides', function (r) { return r.aux.uarm <= 20; }, 'moderate', ['augustin25']),
+      Q('lean', 'Leaning into it', function (r) { return r.aux.torso <= 12; }, 'moderate', ['augustin25'])],
     aux:{ uarm:['uarm', 'range'], torso:['torso', 'range'] } });
   var OHEXT = R({ view:V_SIDE, sig:'elbow', ext:'max', unit:'°', what:'elbow angle', prom:30, ecc:'from', target:155, better:'higher',
-    checks:[C('lockout', 'Straighten your arms', function (r) { return r.ext >= 155; }, true), C('stretch', 'Deep elbow bend behind your head', function (r) { return r.other <= 75; }, true), C('drift', 'Upper arms moving', function (r) { return r.aux.uarm <= 20; })],
+    checks:[M('stretch', 'Deep elbow bend behind your head', function (r) { return r.other <= 75; }, 'moderate', ['maeo23']),
+      N('lockout', 'Straighten your arms', function (r) { return r.ext >= 155; }, function (r) { return r.ext >= 130; }, 'low', ROMSRC),
+      Q('drift', 'Upper arms moving', function (r) { return r.aux.uarm <= 20; }, 'moderate', ['augustin25'])],
     aux:{ uarm:['uarm', 'range'] } });
-  var CALF = function (sig) { return R({ view:V_SIDE, sig:sig, ext:'max', unit:'', what:'heel height', rel:true, prom:0.06, ecc:'from', better:'higher',
-    checks:[C('pause', 'No pause in the stretch at the bottom', function (r) { return r.holdOther >= 0.7; })] }); };
+  var CALF = function (sig) { return R({ view:V_SIDE, sig:sig, ext:'max', unit:'', what:'heel height', rel:true, prom:0.06, ecc:'from', better:'higher', relEv:'moderate', relSrc:['kassiano23c', 'kinoshita23'],
+    checks:[Q('pause', 'No pause in the stretch at the bottom', function (r) { return r.holdOther >= 0.7; }, 'low', [])] }); };
   var KNEERAISE = R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:30, ecc:'from', target:80, better:'lower',
-    checks:[C('height', 'Knees above hip level', function (r) { return r.ext <= 80; }, true), C('return', 'Lower all the way', function (r) { return r.other >= 145; }, true), C('swing', 'Swinging', function (r) { return r.aux.torso <= 15; })],
+    checks:[M('height', 'Knees above hip level', function (r) { return r.ext <= 80; }, 'low', ['schoenfeld20']),
+      N('return', 'Lower all the way', function (r) { return r.other >= 145; }, function (r) { return r.other >= 120; }, 'low', ['schoenfeld20']),
+      Q('swing', 'Swinging', function (r) { return r.aux.torso <= 15; }, 'low', [])],
     aux:{ torso:['torso', 'range'] } });
+  var BACKEXT = R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:25, ecc:'to', target:120, better:'lower',
+    checks:[M('depth', 'Hinge down to a hamstring stretch', function (r) { return r.ext <= 120; }, 'low', ['morin25', 'crawford25']),
+      N('top', 'Rise to a straight line', function (r) { return r.other >= 165; }, function (r) { return r.other >= 145; }, 'low', ROMSRC)] });
 
   var RULES = {
     hack:SQUAT, smith_squat:SQUAT, bb_squat:SQUAT, goblet:SQUAT,
@@ -96,57 +150,78 @@
     db_split:Object.assign({}, LUNGE, { per:true }), bulgarian:Object.assign({}, LUNGE, { per:true }),
     walking_lunge:Object.assign({}, LUNGE, { per:true, note:'You walk out of frame on walking lunges, so only the reps the camera sees are counted.' }),
     step_up:R({ view:V_SIDE, sig:'hipUp', ext:'max', unit:'', what:'hip height', rel:true, prom:0.25, ecc:'from', per:true, better:'higher',
-      checks:[C('stand', 'Stand tall on the box', function (r) { return r.aux.kneeTop >= 160; }, true)], aux:{ kneeTop:['kneeMax', 'atExt'] } }),
+      checks:[M('stand', 'Stand tall on the box', function (r) { return r.aux.kneeTop >= 160; }, 'low', [])], aux:{ kneeTop:['kneeMax', 'atExt'] } }),
     db_rdl:HINGE, bb_rdl:HINGE, smith_rdl:HINGE,
-    cable_pullthrough:Object.assign({}, HINGE, { checks:[C('depth', 'Hinge back to a hamstring stretch', function (r) { return r.ext <= 120; }, true), C('stand', 'Drive the hips all the way through', function (r) { return r.other >= 160; }, true), HINGE.checks[2]] }),
-    back_ext:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:25, ecc:'to', target:120, better:'lower',
-      checks:[C('depth', 'Hinge down to a hamstring stretch', function (r) { return r.ext <= 120; }, true), C('top', 'Rise to a straight line', function (r) { return r.other >= 165; }, true)] }),
+    cable_pullthrough:Object.assign({}, HINGE, { target:120, checks:[M('depth', 'Hinge back to a hamstring stretch', function (r) { return r.ext <= 120; }, 'low', ['morin25', 'crawford25']),
+      N('stand', 'Drive the hips all the way through', function (r) { return r.other >= 160; }, function (r) { return r.other >= 140; }, 'low', ROMSRC), HINGE_SQUAT] }),
+    back_ext:BACKEXT,
     ht_mc:THRUST, bb_ht:THRUST, smith_ht:THRUST,
     leg_ext:R({ view:V_SIDE, sig:'knee', ext:'max', unit:'°', what:'knee angle', prom:30, ecc:'from', target:160, better:'higher',
-      checks:[C('top', 'Straighten fully', function (r) { return r.ext >= 160; }, true), C('bottom', 'Lower until fully bent', function (r) { return r.other <= 100; }, true), C('squeeze', 'Squeeze about 1 s at the top', function (r) { return r.holdExt >= 0.6; }), C('hips', 'Hips lifting off the seat', function (r) { return r.aux.hip <= 15; })],
+      checks:[M('bottom', 'Lower until fully bent', function (r) { return r.other <= 100; }, 'moderate', ['pedrosa22', 'mcmahon26']),
+        N('top', 'Straighten fully', function (r) { return r.ext >= 160; }, function (r) { return r.ext >= 130; }, 'moderate', ['pedrosa22', 'mcmahon26']), SQUEEZE,
+        F('hips', 'Hips lifting off the seat', function (r) { return r.aux.hip <= 15; }, 'low', [])],
       aux:{ hip:['hip', 'range'] } }),
     seated_curl:R({ view:V_SIDE, sig:'knee', ext:'min', unit:'°', what:'knee angle', prom:30, ecc:'from', target:75, better:'lower',
-      checks:[C('curl', 'Heels under the seat as far as they go', function (r) { return r.ext <= 75; }, true), C('return', 'Return to nearly straight', function (r) { return r.other >= 150; }, true)] }),
+      checks:[M('return', 'Return to nearly straight', function (r) { return r.other >= 150; }, 'moderate', ['maeo21']),
+        N('curl', 'Heels under the seat as far as they go', function (r) { return r.ext <= 75; }, function (r) { return r.ext <= 110; }, 'low', ROMSRC)] }),
     lying_curl:R({ view:V_SIDE, sig:'knee', ext:'min', unit:'°', what:'knee angle', prom:30, ecc:'from', target:80, better:'lower',
-      checks:[C('curl', 'Curl heels toward your glutes', function (r) { return r.ext <= 80; }, true), C('return', 'Lower to nearly straight', function (r) { return r.other >= 150; }, true), tempoCheck(2), C('hips', 'Hips rising off the bench', function (r) { return r.aux.hip <= 15; })],
+      checks:[M('return', 'Lower to nearly straight', function (r) { return r.other >= 150; }, 'moderate', ['maeo21']),
+        N('curl', 'Curl heels toward your glutes', function (r) { return r.ext <= 80; }, function (r) { return r.ext <= 115; }, 'low', ROMSRC), TEMPO,
+        F('hips', 'Hips rising off the bench', function (r) { return r.aux.hip <= 15; }, 'low', [])],
       aux:{ hip:['hip', 'range'] } }),
     ball_curl:R({ view:V_SIDE, sig:'knee', ext:'min', unit:'°', what:'knee angle', prom:30, ecc:'from', target:90, better:'lower',
-      checks:[C('curl', 'Roll the ball all the way in', function (r) { return r.ext <= 90; }, true), C('return', 'Roll back out to straight legs', function (r) { return r.other >= 150; }, true), C('hips', 'Hips dropping', function (r) { return r.aux.hipAt >= 145; })],
+      checks:[M('return', 'Roll back out to straight legs', function (r) { return r.other >= 150; }, 'moderate', ['maeo21']),
+        N('curl', 'Roll the ball all the way in', function (r) { return r.ext <= 90; }, function (r) { return r.ext <= 120; }, 'low', ROMSRC),
+        F('hips', 'Hips dropping', function (r) { return r.aux.hipAt >= 145; }, 'low', [])],
       aux:{ hipAt:['hip', 'atExt'] } }),
     standing_calf:CALF('hipUp'), sl_db_calf:Object.assign({}, CALF('hipUp'), { per:true }), seated_calf:CALF('kneeUp'),
     lp_calf:{ none:'The camera can’t see your ankles bend on the leg press, so this one can’t be checked from video.' },
-    ab_crunch_mc:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'trunk angle', rel:true, prom:12, ecc:'from', better:'lower', checks:[] }),
-    cable_crunch:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'trunk angle', rel:true, prom:12, ecc:'from', better:'lower',
-      checks:[C('sitback', 'Sitting back on your heels', function (r) { return r.aux.hipX <= 0.25; })], aux:{ hipX:['hipX', 'range'] } }),
+    ab_crunch_mc:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'trunk angle', rel:true, prom:12, ecc:'from', better:'lower', relSrc:['schoenfeld20'], checks:[] }),
+    cable_crunch:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'trunk angle', rel:true, prom:12, ecc:'from', better:'lower', relSrc:['schoenfeld20'],
+      checks:[Q('sitback', 'Sitting back on your heels', function (r) { return r.aux.hipX <= 0.25; }, 'low', [])], aux:{ hipX:['hipX', 'range'] } }),
     captain:KNEERAISE, hanging_kr:KNEERAISE,
     leg_raise:R({ view:V_SIDE, sig:'hip', ext:'min', unit:'°', what:'hip angle', prom:30, ecc:'from', target:100, better:'lower',
-      checks:[C('height', 'Legs up to vertical', function (r) { return r.ext <= 100; }, true), C('return', 'Lower the legs back down', function (r) { return r.other >= 150; }, true), C('knees', 'Knees bending', function (r) { return r.aux.kneeAt >= 145; })],
+      checks:[M('height', 'Legs up to vertical', function (r) { return r.ext <= 100; }, 'low', ['schoenfeld20']),
+        N('return', 'Lower the legs back down', function (r) { return r.other >= 150; }, function (r) { return r.other >= 125; }, 'low', ['schoenfeld20']),
+        Q('knees', 'Knees bending', function (r) { return r.aux.kneeAt >= 145; }, 'low', [])],
       aux:{ kneeAt:['knee', 'atExt'] } }),
     dead_bug:R({ view:V_SIDE, sig:'kneeMax', ext:'max', unit:'°', what:'leg reach', rel:true, prom:30, ecc:'from', per:true, better:'higher', checks:[] }),
-    pushup:PRESS({ checks:[C('depth', 'Chest down to a fist from the floor', function (r) { return r.ext <= 100; }, true), C('lockout', 'Press back to straight arms', function (r) { return r.other >= 155; }, true), C('line', 'Hips sagging or piking', function (r) { return r.aux.body >= 155; })], aux:{ body:['body', 'minWin'] } }),
-    mc_press:PRESS({ checks:[PRESS().checks[0], PRESS().checks[1], tempoCheck(2)], tip:'sideLow' }),
-    db_bench:PRESS({ tip:'sideLow' }), smith_bench:PRESS({ tip:'sideLow' }), bb_bench:PRESS({ tip:'sideLow' }),
-    mc_incline:PRESS({ checks:[C('depth', 'Lower to an upper-chest stretch', function (r) { return r.ext <= 100; }, true), PRESS().checks[1], tempoCheck(2)], tip:'sideLow' }),
-    db_incline:PRESS({ tip:'sideLow' }), smith_incline:PRESS({ tip:'sideLow' }),
+    pushup:PRESS({ tip:'side', checks:[M('depth', 'Chest down to a fist from the floor', function (r) { return r.ext <= 100; }, 'low', ['wolf25']),
+      N('lockout', 'Press back to straight arms', function (r) { return r.other >= 155; }, function (r) { return r.other >= 130; }, 'low', ROMSRC),
+      F('line', 'Hips sagging or piking', function (r) { return r.aux.body >= 155; }, 'low', [])], aux:{ body:['body', 'minWin'] } }),
+    mc_press:PRESS({ checks:[PRESS_DEPTH, PRESS_LOCK, TEMPO] }),
+    db_bench:PRESS(), smith_bench:PRESS(), bb_bench:PRESS(),
+    mc_incline:PRESS({ checks:[M('depth', 'Lower to an upper-chest stretch', function (r) { return r.ext <= 100; }, 'low', ['wolf25']), PRESS_LOCK, TEMPO] }),
+    db_incline:PRESS(), smith_incline:PRESS(),
     mc_dip:R({ view:V_SIDE, sig:'elbow', ext:'max', unit:'°', what:'elbow angle', prom:30, ecc:'from', target:155, better:'higher',
-      checks:[C('lockout', 'Press down to straight arms', function (r) { return r.ext >= 155; }, true), C('return', 'Come back up to about 90°', function (r) { return r.other <= 100; }, true)] }),
+      checks:[M('return', 'Come back up to about 90°', function (r) { return r.other <= 100; }, 'low', ['maeo23']),
+        N('lockout', 'Press down to straight arms', function (r) { return r.ext >= 155; }, function (r) { return r.ext >= 130; }, 'low', ROMSRC)] }),
     mc_shoulder:VPRESS, db_shoulder:VPRESS, smith_ohp:VPRESS,
-    cs_row:ROW({ checks:[ROW().checks[0], ROW().checks[1], C('pad', 'Lifting off the pad', function (r) { return r.aux.torso <= 15; }), C('squeeze', 'Squeeze about 1 s', function (r) { return r.holdExt >= 0.5; })], aux:{ torso:['torso', 'range'] } }),
-    db_cs_row:ROW({ checks:[ROW().checks[0], ROW().checks[1], C('pad', 'Chest lifting off the bench', function (r) { return r.aux.torso <= 15; }), C('squeeze', 'Squeeze about 1 s', function (r) { return r.holdExt >= 0.5; })], aux:{ torso:['torso', 'range'] } }),
-    cable_row:ROW({ checks:[ROW().checks[0], ROW().checks[1], C('rock', 'Rocking back and forth', function (r) { return r.aux.torso <= 20; })], aux:{ torso:['torso', 'range'] } }),
+    cs_row:ROW({ checks:[ROW_REACH, ROW_PULL, F('pad', 'Lifting off the pad', function (r) { return r.aux.torso <= 15; }, 'low', []), Q('squeeze', 'No 1-second squeeze', function (r) { return r.holdExt >= 0.5; }, 'low', [])], aux:{ torso:['torso', 'range'] } }),
+    db_cs_row:ROW({ checks:[ROW_REACH, ROW_PULL, F('pad', 'Chest lifting off the bench', function (r) { return r.aux.torso <= 15; }, 'low', []), Q('squeeze', 'No 1-second squeeze', function (r) { return r.holdExt >= 0.5; }, 'low', [])], aux:{ torso:['torso', 'range'] } }),
+    cable_row:ROW({ checks:[ROW_REACH, ROW_PULL, F('rock', 'Rocking back and forth', function (r) { return r.aux.torso <= 20; }, 'low', ['difonza26'])], aux:{ torso:['torso', 'range'] } }),
     db_row:ROW(),
-    pulldown:VPULL({ checks:[VPULL().checks[0], VPULL().checks[1], C('lean', 'Leaning back too far', function (r) { return r.aux.lean <= 30; })], aux:{ lean:['lean', 'maxWin'] } }),
-    ng_pulldown:VPULL({ checks:[VPULL().checks[0], VPULL().checks[1], C('lean', 'Leaning back too far', function (r) { return r.aux.lean <= 30; })], aux:{ lean:['lean', 'maxWin'] } }),
-    assisted_pu:VPULL({ checks:[C('pull', 'Pull your chest toward the bar', function (r) { return r.ext <= 75; }, true), VPULL().checks[1]], target:75 }),
-    band_pu:VPULL({ checks:[C('pull', 'Chin over the bar', function (r) { return r.ext <= 75; }, true), VPULL().checks[1]], target:75 }),
-    pec_deck:FLY({ checks:[FLY().checks[0], C('squeeze', 'Squeeze about 1 s', function (r) { return r.holdExt >= 0.6; })] }), cable_fly:FLY(), db_fly:FLY({ tip:'front' }),
+    pulldown:VPULL({ checks:VPULL().checks.concat([PULL_LEAN]), aux:{ lean:['lean', 'maxWin'] } }),
+    ng_pulldown:VPULL({ checks:VPULL().checks.concat([PULL_LEAN]), aux:{ lean:['lean', 'maxWin'] } }),
+    assisted_pu:VPULL({ target:75, checks:[PULL_STRETCH, N('pull', 'Pull your chest toward the bar', function (r) { return r.ext <= 75; }, function (r) { return r.ext <= 110; }, 'low', [])] }),
+    band_pu:VPULL({ target:75, checks:[PULL_STRETCH, N('pull', 'Chin over the bar', function (r) { return r.ext <= 75; }, function (r) { return r.ext <= 110; }, 'low', [])] }),
+    pec_deck:FLY({ checks:[FLY().checks[0], SQUEEZE] }), cable_fly:FLY(), db_fly:FLY(),
     rear_deck:REAR, face_pull:REAR, db_rear:REAR,
     cable_lat:LATERAL('abdMax'), mc_lat:LATERAL('abdAvg'), db_lat:LATERAL('abdAvg'),
     pushdown:PUSHDOWN, oh_cable_ext:OHEXT, db_oh_ext:OHEXT,
-    cable_curl:CURLPAT({ checks:CURLPAT().checks.concat([tempoCheck(2)]) }), db_curl:CURLPAT(), incline_db_curl:CURLPAT(), hammer:CURLPAT(),
-    preacher_mc:CURLPAT({ checks:[C('top', 'Curl all the way up', function (r) { return r.ext <= 70; }, true), C('bottom', 'Lower until nearly straight', function (r) { return r.other >= 140; }, true)], aux:{} })
+    cable_curl:CURLPAT({ checks:CURLPAT().checks.concat([TEMPO]) }), db_curl:CURLPAT(), incline_db_curl:CURLPAT(), hammer:CURLPAT(),
+    preacher_mc:CURLPAT({ checks:[M('bottom', 'Lower until nearly straight', function (r) { return r.other >= 140; }, 'moderate', ['pedrosa23', 'havers25']),
+      N('top', 'Curl all the way up', function (r) { return r.ext <= 70; }, function (r) { return r.ext <= 100; }, 'moderate', ['pedrosa23', 'havers25'])], aux:{} })
   };
   function ruleFor(id) { return RULES[id] || null; }
+  /* The checks of a rule as plain data for the UI: label, kind, evidence level, sources with links. */
+  function metaFor(rule) {
+    if (!rule || rule.none) return [];
+    var out = (rule.checks || []).map(function (c) { return { code:c.code, label:c.label, kind:c.kind, ev:c.ev, src:(c.src || []).map(srcOf).filter(Boolean) }; });
+    if (rule.rel) out.push({ code:'short', label:'Under 70% of your best reps’ range', kind:'must', ev:rule.relEv || 'low', src:(rule.relSrc || ['pallares21', 'kassiano23r']).map(srcOf).filter(Boolean) });
+    return out;
+  }
+  function srcOf(k) { var s = SRC[k]; return s ? { a:s.a, url:'https://doi.org/' + s.d } : null; }
   function tipFor(rule) { return TIP[rule.tip || rule.view] || TIP.side; }
 
   /* ---------- signal processing ---------- */
@@ -268,23 +343,30 @@
     // relative range: partial when under 70% of the set's best reps
     var best = null;
     if (rule.rel && reps.length) { var rs = reps.map(function (r) { return r.range; }).sort(function (a, b) { return b - a; }); best = median(rs.slice(0, Math.min(3, rs.length))); }
-    var flagCount = {};
+    var flagCount = {}, cueCount = {};
+    function safe(fn, r) { try { return !!fn(r); } catch (e) { return true; } }
     reps.forEach(function (r) {
-      r.partial = false; r.fails = []; r.flags = [];
+      r.fails = []; r.spFails = []; r.flags = []; r.cues = [];
+      var auxBad = Object.keys(r.aux).some(function (k) { return !isFinite(r.aux[k]); });
       (rule.checks || []).forEach(function (c) {
-        var pass; try { pass = c.test(r); } catch (e) { pass = true; }
-        if (pass !== false && !(pass !== pass)) return;
-        if (c.partial) { r.partial = true; r.fails.push(c.code); } else { r.flags.push(c.code); flagCount[c.code] = (flagCount[c.code] || 0) + 1; }
+        if (safe(c.test, r)) return;
+        if (c.kind === 'must') r.fails.push(c.code);
+        else if (c.kind === 'nice') { if (!c.floor || safe(c.floor, r)) r.spFails.push(c.code); else r.fails.push(c.code); }
+        else if (auxBad && Object.keys(r.aux).length) return;
+        else if (c.kind === 'flag') { r.flags.push(c.code); flagCount[c.code] = (flagCount[c.code] || 0) + 1; }
+        else { r.cues.push(c.code); cueCount[c.code] = (cueCount[c.code] || 0) + 1; }
       });
-      if (best && r.range < best * 0.7) { r.partial = true; r.fails.push('short'); }
+      if (best && r.range < best * 0.7) r.fails.push('short');
+      r.partial = r.fails.length > 0; r.sp = !r.partial && r.spFails.length > 0;
     });
-    var labels = {}; (rule.checks || []).forEach(function (c) { labels[c.code] = c.label; }); labels.short = 'Shorter than your best reps';
-    var nP = reps.filter(function (r) { return r.partial; }).length;
-    return { id:id, view:rule.view, side:side ? 'right' : 'left', fps:Math.round(fps), coverage:coverage, n:reps.length, nGood:reps.length - nP, nPartial:nP,
-      reps:reps, flags:flagCount, labels:labels, warn:warn, rel:!!rule.rel, unit:rule.unit, what:rule.what, target:rule.target, better:rule.better, per:!!rule.per,
+    var meta = metaFor(rule), labels = {}, kinds = {};
+    meta.forEach(function (m) { labels[m.code] = m.label; kinds[m.code] = m.kind; });
+    var nP = reps.filter(function (r) { return r.partial; }).length, nS = reps.filter(function (r) { return r.sp; }).length;
+    return { id:id, view:rule.view, side:side ? 'right' : 'left', fps:Math.round(fps), coverage:coverage, n:reps.length, nGood:reps.length - nP - nS, nSp:nS, nPartial:nP,
+      reps:reps, flags:flagCount, cues:cueCount, labels:labels, kinds:kinds, meta:meta, warn:warn, rel:!!rule.rel, unit:rule.unit, what:rule.what, target:rule.target, better:rule.better, per:!!rule.per,
       series:y, times:track.map(function (f) { return f.t; }), duration:track[n - 1].t - track[0].t };
   }
 
-  var API = { analyze:analyze, ruleFor:ruleFor, tipFor:tipFor, RULES:RULES, SIG:SIG, _peaks:peaks };
+  var API = { analyze:analyze, ruleFor:ruleFor, tipFor:tipFor, metaFor:function (id) { return metaFor(ruleFor(id)); }, RULES:RULES, SRC:SRC, SIG:SIG, _peaks:peaks };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.FormEngine = API;
 })(typeof window !== 'undefined' ? window : this);

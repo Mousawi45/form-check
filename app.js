@@ -8,22 +8,86 @@ try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS) || '{}')); } catc
 const savePrefs = () => { try { localStorage.setItem(LS, JSON.stringify(prefs)); } catch (e) {} };
 const EX = {}; (window.EXERCISES || []).forEach(x => { EX[x.id] = x; });
 
-/* ---------- setup ---------- */
-function fillSelect(){
-  const sel = $('exSel'), groups = {};
-  window.EXERCISES.forEach(x => { (groups[x.g] = groups[x.g] || []).push(x); });
-  sel.innerHTML = Object.keys(groups).map(g => '<optgroup label="' + esc(g) + '">' + groups[g].map(x => '<option value="' + x.id + '">' + esc(x.n) + '</option>').join('') + '</optgroup>').join('');
-  if (!EX[prefs.ex]) prefs.ex = 'hack';
-  sel.value = prefs.ex; showEx();
+/* ---------- plan from Daily Vitals ---------- */
+const DV_URL = 'https://claude.ai/artifact/79HREb7uoFQKNjZaryAH33#gym', EVIDENCE_DOC = 'https://claude.ai/artifact/H5w4Hkk4P93VMvSpE3J2xz';
+let plan = null, cur = null;   // plan: { d, wk, n, it:[{ k, s, x, sets, lo, hi, done }], got }; cur: the plan item being trained
+const int = (v, lo, hi) => { v = Math.round(Number(v)); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null; };
+function parsePlan(str){
+  try {
+    const o = JSON.parse(decodeURIComponent(escape(atob(str.replace(/-/g, '+').replace(/_/g, '/')))));
+    if (!o || o.v !== 1 || !Array.isArray(o.it)) return null;
+    const it = o.it.slice(0, 16).filter(i => i && typeof i.k === 'string' && /^[a-z0-9_]{2,12}$/.test(i.k) && EX[i.x]).map(i => ({ k:i.k, s:String(i.s || '').slice(0, 4), x:i.x, sets:int(i.sets, 1, 10) || 3, lo:int(i.lo, 1, 50), hi:int(i.hi, 1, 60), done:int(i.done, 0, 20) || 0 }));
+    if (!it.length) return null;
+    return { d:/^\d{4}-\d\d-\d\d$/.test(o.d) ? o.d : '', wk:String(o.wk || '').slice(0, 4), n:String(o.n || 'Today').slice(0, 40), cur:typeof o.cur === 'string' ? o.cur : '', it, got:Date.now() };
+  } catch (e) { return null; }
 }
+const item = k => plan && plan.it.find(i => i.k === k);
+const nextUndone = () => plan && (plan.it.find(i => i.done < i.sets) || null);
+function loadPlan(){
+  const m = /[#&]plan=([A-Za-z0-9_-]+)/.exec(location.hash), inc = m ? parsePlan(m[1]) : null;
+  const saved = prefs.plan && Date.now() - (prefs.plan.got || 0) < 16 * 3600e3 ? prefs.plan : null;
+  if (inc) {
+    if (saved && saved.d === inc.d && saved.wk === inc.wk) inc.it.forEach(i => { const o = saved.it.find(z => z.k === i.k && z.x === i.x); if (o) i.done = Math.max(i.done, o.done); });
+    plan = inc; cur = item(inc.cur) ? inc.cur : (nextUndone() || plan.it[0]).k;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  } else if (saved) { plan = saved; cur = item(prefs.cur) ? prefs.cur : null; }
+  else prefs.plan = null;
+  if (plan) { prefs.plan = plan; if (cur) prefs.ex = item(cur).x; }
+  prefs.cur = cur; savePrefs();
+}
+function renderPlan(){
+  $('planCard').hidden = !plan; if (!plan) return;
+  $('planTitle').textContent = plan.n;
+  const left = plan.it.filter(i => i.done < i.sets).length;
+  $('planNote').textContent = left ? left + ' of ' + plan.it.length + ' to go' : 'All done';
+  $('planList').innerHTML = plan.it.map(i => { const x = EX[i.x], ok = i.done >= i.sets; return '<button type="button" class="pi' + (ok ? ' done' : '') + '" data-k="' + esc(i.k) + '" aria-pressed="' + (i.k === cur) + '"><span class="ps">' + esc(i.s) + '</span><span class="pn"><b>' + esc(x.n) + '</b><small>' + Math.min(i.done, i.sets) + ' of ' + i.sets + ' sets' + (i.lo ? ' · ' + i.lo + '–' + i.hi + ' reps' : '') + (x.per ? ' ' + esc(x.per) : '') + '</small></span><span class="pk" aria-hidden="true">' + (ok ? '✓' : '') + '</span></button>'; }).join('');
+}
+$('planList').addEventListener('click', e => { const b = e.target.closest('.pi'); if (!b || !item(b.dataset.k)) return; choose(item(b.dataset.k).x, b.dataset.k); });
+
+/* ---------- exercise picker with search ---------- */
+const SYN = { Chest:'pecs push', Back:'lats pull row', Legs:'quads glutes hamstrings hams calves thighs', 'Shoulders & arms':'delts biceps triceps arms', Abs:'core' };
+const EQN = { machine:'Machine', cable:'Cable', free:'Free weight', bw:'Bodyweight' };
+const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const textOf = x => norm(x.n + ' ' + (EQN[x.eq] || '') + ' ' + x.g + ' ' + (SYN[x.g] || ''));
+function hit(text, q){ const flat = text.replace(/ /g, ''); return norm(q).split(' ').filter(Boolean).every(w => (' ' + text).indexOf(' ' + w) >= 0 || flat.indexOf(w) >= 0); }
+function renderPicker(){
+  const q = $('q').value, groups = {}, inPlan = plan ? new Set(plan.it.map(i => i.x)) : new Set();
+  window.EXERCISES.forEach(x => { if (!q || hit(textOf(x), q)) (groups[x.g] = groups[x.g] || []).push(x); });
+  const row = x => '<button type="button" class="po" data-x="' + x.id + '" aria-pressed="' + (x.id === prefs.ex) + '"><b>' + esc(x.n) + '</b><small>' + esc(EQN[x.eq] || '') + (inPlan.has(x.id) ? ' · in today’s workout' : '') + '</small></button>';
+  let h = '';
+  if (plan && !q) h += '<div class="pg"><span class="eyebrow">Today’s workout</span>' + plan.it.map(i => EX[i.x]).map(row).join('') + '</div>';
+  h += Object.keys(groups).map(g => '<div class="pg"><span class="eyebrow">' + esc(g) + '</span>' + groups[g].map(row).join('') + '</div>').join('');
+  $('pickList').innerHTML = h || '<p class="note">Nothing matches. Try a muscle (chest, quads), a machine or part of the name.</p>';
+}
+function openPicker(){ $('picker').hidden = false; $('setup').inert = true; $('q').value = ''; renderPicker(); setTimeout(() => $('q').focus(), 30); }
+function closePicker(){ $('picker').hidden = true; $('setup').inert = false; $('pickBtn').focus(); }
+$('pickBtn').addEventListener('click', openPicker);
+$('pickClose').addEventListener('click', closePicker);
+$('q').addEventListener('input', renderPicker);
+$('q').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const f = $('pickList').querySelector('.po'); if (f) setTimeout(() => f.click(), 0); });
+$('pickList').addEventListener('click', e => { const b = e.target.closest('.po'); if (!b) return; choose(b.dataset.x); closePicker(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('picker').hidden) closePicker(); });
+function choose(id, k){
+  if (!EX[id]) return;
+  prefs.ex = id;
+  cur = k || (plan && (plan.it.find(i => i.x === id && i.done < i.sets) || plan.it.find(i => i.x === id)) || {}).k || null;
+  prefs.cur = cur; savePrefs(); showEx(); renderPlan();
+}
+
+/* ---------- what gets checked, with the evidence ---------- */
+const EVL = { strong:'Strong evidence', moderate:'Moderate evidence', low:'Low evidence' };
+const KIND = { must:['Range', 'missing it makes a partial'], nice:['Range', 'missing it makes a stretch partial, which still counts'], flag:['Form', 'flagged, rep still counts'], cue:['Plan cue', 'from your plan; little growth evidence either way'] };
+const evLine = m => '<span class="ev">' + EVL[m.ev] + '</span>' + (m.src && m.src.length ? ' · ' + m.src.map(x => '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.a) + '</a>').join(', ') : '');
 function showEx(){
-  const rule = FormEngine.ruleFor(prefs.ex), x = EX[prefs.ex];
+  const rule = FormEngine.ruleFor(prefs.ex), x = EX[prefs.ex], it = item(cur);
+  $('exName').textContent = x.n;
+  $('exMeta').textContent = (it ? it.s + ' · ' + Math.min(it.done, it.sets) + ' of ' + it.sets + ' sets · ' : '') + (EQN[x.eq] || '') + ' · ' + x.g;
+  $('exCues').innerHTML = (x.c || []).map(c => '<li>' + esc(c) + '</li>').join('');
   if (!rule || rule.none) { $('exTip').textContent = rule && rule.none ? rule.none : 'No form check for this one yet.'; $('exChecks').innerHTML = ''; $('startBtn').disabled = true; return; }
   $('startBtn').disabled = false;
-  $('exTip').textContent = FormEngine.tipFor(rule) + (x && x.per ? ' Do one side per set; reps are counted ' + x.per + '.' : '');
-  $('exChecks').innerHTML = (rule.checks || []).map(c => '<li>' + esc(c.label) + ' <small>' + (c.partial ? 'range' : 'form') + '</small></li>').join('') + (rule.rel ? '<li>Reps under 70% of your best rep count as partial <small>range</small></li>' : '');
+  $('exTip').textContent = FormEngine.tipFor(rule) + (x.per ? ' Do one side per set; reps are counted ' + x.per + '.' : '');
+  $('exChecks').innerHTML = FormEngine.metaFor(prefs.ex).map(m => '<li class="k-' + m.kind + '"><span><b>' + esc(m.label) + '</b> <small>' + KIND[m.kind][0] + ': ' + KIND[m.kind][1] + '</small></span><small>' + evLine(m) + '</small></li>').join('');
 }
-$('exSel').addEventListener('change', e => { prefs.ex = e.target.value; savePrefs(); showEx(); });
 document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { prefs.cam = b.dataset.cam; savePrefs(); syncSeg(); }));
 document.querySelectorAll('[data-snd]').forEach(b => b.addEventListener('click', () => { prefs.snd = b.dataset.snd; savePrefs(); syncSeg(); }));
 function syncSeg(){
@@ -39,12 +103,14 @@ function unlockAudio(){
 }
 function tone(f, d, at){ if (!actx) return; const t = actx.currentTime + (at || 0), o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; o.type = 'sine'; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(actx.destination); o.start(t); o.stop(t + d + 0.02); }
 function say(text){ try { if (!window.speechSynthesis) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.15; speechSynthesis.speak(u); } catch (e) {} }
+/* p partial (stretched end missed) · s stretch partial (still counts) · f form flag · g full */
+const repKind = r => r.partial ? 'p' : r.flags.length ? 'f' : r.sp ? 's' : 'g';
 function cue(rep){
-  const kind = rep.partial ? 'p' : rep.flags.length ? 'f' : 'g';
-  try { if (navigator.vibrate) navigator.vibrate(kind === 'g' ? 60 : [80, 60, 80]); } catch (e) {}
+  const kind = repKind(rep);
+  try { if (navigator.vibrate) navigator.vibrate(kind === 'g' ? 60 : kind === 's' ? [60, 50, 40] : [80, 60, 80]); } catch (e) {}
   if (prefs.snd === 'off') return;
-  if (prefs.snd === 'voice') say(rep.i + (kind === 'p' ? ', partial' : kind === 'f' ? ', check form' : ''));
-  else if (kind === 'g') tone(880, 0.13); else if (kind === 'p') { tone(330, 0.16); tone(330, 0.16, 0.22); } else { tone(600, 0.1); tone(600, 0.1, 0.16); }
+  if (prefs.snd === 'voice') say(rep.i + (kind === 'p' ? ', partial' : kind === 's' ? ', stretch partial' : kind === 'f' ? ', check form' : ''));
+  else if (kind === 'g') tone(880, 0.13); else if (kind === 's') { tone(880, 0.1); tone(660, 0.12, 0.14); } else if (kind === 'p') { tone(330, 0.16); tone(330, 0.16, 0.22); } else { tone(600, 0.1); tone(600, 0.1, 0.16); }
 }
 
 /* ---------- model ---------- */
@@ -101,8 +167,8 @@ async function start(){
   const v = $('vid'); v.srcObject = stream; await v.play().catch(() => {});
   $('setup').hidden = true; $('summary').hidden = true; $('live').hidden = false;
   $('live').classList.toggle('mirror', prefs.cam === 'user');
-  const x = EX[prefs.ex], rule = FormEngine.ruleFor(prefs.ex);
-  $('hudEx').innerHTML = esc(x.n) + '<small>' + esc(rule.what) + (rule.target != null && !rule.rel ? ' · target ' + (rule.better === 'lower' ? '≤ ' : '≥ ') + rule.target + '°' : '') + '</small>';
+  const x = EX[prefs.ex], rule = FormEngine.ruleFor(prefs.ex), it = item(cur);
+  $('hudEx').innerHTML = (it ? esc(it.s) + ' · ' : '') + esc(x.n) + '<small>' + esc(rule.what) + (rule.target != null && !rule.rel ? ' · target ' + (rule.better === 'lower' ? '≤ ' : '≥ ') + rule.target + '°' : '') + '</small>';
   $('hudReps').innerHTML = '0<small>reps</small>'; $('last').hidden = true; $('gVal').textContent = '–'; $('gLbl').textContent = rule.rel ? '' : rule.what;
   track = []; prevBox = null; miss = 0; announced = 0; lastRes = null; recording = false; frames = 0; fpsT = performance.now(); t0 = performance.now(); lastSeen = 0;
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) { wake = null; }
@@ -169,10 +235,10 @@ function live(now){
     announced++;
     cue(rep);
     $('hudReps').innerHTML = announced + '<small>rep' + (announced === 1 ? '' : 's') + (res.per ? ' this side' : '') + '</small>';
-    const L = $('last'), kind = rep.partial ? 'p' : rep.flags.length ? 'f' : 'g';
+    const L = $('last'), kind = repKind(rep);
     L.className = 'last ' + kind; L.hidden = false;
-    const why = rep.fails.concat(rep.flags).map(c => res.labels[c]).filter(Boolean)[0];
-    L.textContent = 'Rep ' + rep.i + (rule.rel ? '' : ' · ' + fmtVal(rule, rep.ext)) + ' · ' + (kind === 'g' ? 'full' : kind === 'p' ? 'partial' : 'full') + (why ? ': ' + why.toLowerCase() : '');
+    const why = rep.fails.concat(rep.spFails || [], rep.flags, rep.cues || []).map(c => res.labels[c]).filter(Boolean)[0];
+    L.textContent = 'Rep ' + rep.i + (rule.rel ? '' : ' · ' + fmtVal(rule, rep.ext)) + ' · ' + (kind === 'p' ? 'partial' : kind === 's' ? 'stretch partial' : 'full') + (why ? ': ' + why.toLowerCase() : '');
   }
 }
 function stopStream(){ running = false; recording = false; try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {} stream = null; try { wake && wake.release(); } catch (e) {} wake = null; try { speechSynthesis.cancel(); } catch (e) {} }
@@ -194,35 +260,49 @@ function chart(r){
   let g = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(r.what) + ' over the set">';
   if (r.target != null && !r.rel) { const ty = Y(r.target), a = r.better === 'lower' ? ty : pt, b = r.better === 'lower' ? H - pb : ty; g += '<rect class="tz" x="' + pl + '" y="' + Math.min(a, b).toFixed(1) + '" width="' + (W - pl - pr) + '" height="' + Math.abs(b - a).toFixed(1) + '"/><line class="tg" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + ty.toFixed(1) + '" y2="' + ty.toFixed(1) + '"/><text class="ax" x="' + (pl - 4) + '" y="' + (ty + 3).toFixed(1) + '" text-anchor="end">' + r.target + '°</text>'; }
   g += '<path class="ln" d="' + d + '"/>';
-  r.reps.forEach(rep => { g += '<circle class="' + (rep.partial ? 'dp' : 'dg') + '" cx="' + X(rep.e).toFixed(1) + '" cy="' + Y(rep.ext).toFixed(1) + '" r="5"/>'; });
+  r.reps.forEach(rep => { g += '<circle class="' + (rep.partial ? 'dp' : rep.sp ? 'ds' : 'dg') + '" cx="' + X(rep.e).toFixed(1) + '" cy="' + Y(rep.ext).toFixed(1) + '" r="5"/>'; });
   return g + '<text class="ax" x="' + pl + '" y="' + (H - 3) + '">0 s</text><text class="ax" x="' + (W - pr) + '" y="' + (H - 3) + '" text-anchor="end">' + Math.round(ts[n - 1] - ts[0]) + ' s</text></svg>';
 }
 function b64url(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function codeFor(r){
   const today = new Date(), ymd = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
   const r1 = v => v == null || !isFinite(v) ? null : Math.round(v * 10) / 10;
-  return 'VFC1.' + b64url(JSON.stringify({ x:prefs.ex, d:ymd, t:Date.now(), cov:Math.round(r.coverage * 100) / 100, w:r.warn.slice(0, 3),
-    r:r.reps.map(p => ({ e:r1(p.ext), o:r1(p.other), c:r1(p.ecc), h:r1(p.holdExt), a:p.fails, f:p.flags })) }));
+  const o = { x:prefs.ex, d:ymd, t:Date.now(), cov:Math.round(r.coverage * 100) / 100, w:r.warn.slice(0, 3),
+    r:r.reps.map(p => ({ e:r1(p.ext), o:r1(p.other), c:r1(p.ecc), h:r1(p.holdExt), a:p.fails, s:p.spFails || [], f:p.flags, q:p.cues || [] })) };
+  if (item(cur) && item(cur).x === prefs.ex) o.k = cur;   // lands on this exercise slot in Daily Vitals
+  return 'VFC1.' + b64url(JSON.stringify(o));
 }
 function showSummary(res){
   $('live').hidden = true; $('summary').hidden = false; $('setup').hidden = true; window.scrollTo(0, 0);
-  const x = EX[prefs.ex]; $('sumEx').textContent = x.n;
+  const x = EX[prefs.ex], it = item(cur) && item(cur).x === prefs.ex ? item(cur) : null; $('sumEx').textContent = (it ? it.s + ' · ' : '') + x.n;
   const card = $('sumCard');
-  if (res.error) { card.innerHTML = '<p class="tip">' + esc(res.message || 'Couldn’t read the set.') + '</p>'; $('code').value = ''; $('copyBtn').disabled = true; return; }
+  if (res.error) { card.innerHTML = '<p class="tip">' + esc(res.message || 'Couldn’t read the set.') + '</p>'; $('code').value = ''; $('copyBtn').disabled = true; nextLabel(); return; }
   $('copyBtn').disabled = !res.n;
-  let h = '<div class="row" style="justify-content:space-between;align-items:flex-end"><div class="big">' + res.n + '<small>rep' + (res.n === 1 ? '' : 's') + (res.per ? ' this side' : '') + '</small></div><div class="split">' + (res.n ? '<span class="g">' + res.nGood + ' full</span>' + (res.nPartial ? '<span class="p">' + res.nPartial + ' partial</span>' : '') : '<span class="n">No reps found</span>') + '</div></div>';
+  if (it && res.n) { it.done = Math.min(20, it.done + 1); prefs.plan = plan; savePrefs(); }
+  let h = '<div class="row" style="justify-content:space-between;align-items:flex-end"><div class="big">' + res.n + '<small>rep' + (res.n === 1 ? '' : 's') + (res.per ? ' this side' : '') + '</small></div><div class="split">' + (res.n ? '<span class="g">' + res.nGood + ' full</span>' + (res.nSp ? '<span class="s">' + res.nSp + ' stretch partial</span>' : '') + (res.nPartial ? '<span class="p">' + res.nPartial + ' partial</span>' : '') : '<span class="n">No reps found</span>') + '</div></div>';
+  if (it) h += '<p class="note">Set ' + it.done + ' of ' + it.sets + (it.lo ? ' · plan ' + it.lo + '–' + it.hi + ' reps' : '') + '</p>';
   h += chart(res);
-  h += '<div class="chips">' + res.reps.map(p => '<span class="chip' + (p.partial ? ' p' : '') + (p.flags.length ? ' f' : '') + '"><b>' + p.i + '</b><small>' + (fmtVal(FormEngine.ruleFor(prefs.ex), p.ext) || (p.partial ? 'short' : 'full')) + '</small></span>').join('') + '</div>';
-  const by = {}; res.reps.forEach(p => p.fails.concat(p.flags).forEach(c => (by[c] = by[c] || []).push(p.i)));
-  const items = Object.keys(by).map(c => { const fail = res.reps.some(p => p.fails.includes(c)); return '<li class="' + (fail ? 'p' : 'f') + '"><i></i><span><b>' + esc(res.labels[c] || c) + '</b>' + (fail ? ' missed' : '') + ' on rep' + (by[c].length > 1 ? 's ' : ' ') + by[c].join(', ') + '</span></li>'; });
+  h += '<div class="chips">' + res.reps.map(p => '<span class="chip ' + repKind(p) + '"><b>' + p.i + '</b><small>' + (fmtVal(FormEngine.ruleFor(prefs.ex), p.ext) || (p.partial ? 'short' : 'full')) + '</small></span>').join('') + '</div>';
+  const meta = {}; (res.meta || []).forEach(m => { meta[m.code] = m; });
+  const order = { must:0, nice:1, flag:2, cue:3 }, by = {};
+  res.reps.forEach(p => p.fails.concat(p.partial ? [] : p.spFails || [], p.flags, p.cues || []).forEach(c => (by[c] = by[c] || []).push(p.i)));
+  const items = Object.keys(by).sort((a, b) => order[(meta[a] || {}).kind || 'cue'] - order[(meta[b] || {}).kind || 'cue']).map(c => {
+    const m = meta[c] || { label:res.labels[c] || c, kind:'cue', ev:'low', src:[] }, on = ' on rep' + (by[c].length > 1 ? 's ' : ' ') + by[c].join(', ');
+    const t = m.kind === 'must' ? ' missed' + on + ' (partial)' : m.kind === 'nice' ? ' missed' + on + '. Stretched end reached, so these still count' : on + (m.kind === 'cue' ? ' (plan cue)' : '');
+    return '<li class="' + ({ must:'p', nice:'s', flag:'f', cue:'q' })[m.kind] + '"><i></i><span><b>' + esc(m.label) + '</b>' + t + '<small>' + evLine(m) + '</small></span></li>';
+  });
   if (res.n && !items.length) items.push('<li><i></i><span><b>Every rep hit the standard.</b></span></li>');
   if (items.length) h += '<ul class="issues">' + items.join('') + '</ul>';
   res.warn.forEach(w => { h += '<p class="note">' + esc(w) + '</p>'; });
-  h += '<p class="note">Angles from a phone camera are estimates, give or take about 5–10°.</p>';
+  h += '<p class="note">Phone-camera angles can be off by 10–15°, so compare reps with each other rather than trusting one number.</p>';
   card.innerHTML = h;
   $('code').value = res.n ? codeFor(res) : '';
+  $('pasteWhere').textContent = it ? it.s + ' ' + x.n : x.n;
   $('copyStatus').textContent = '';
+  nextLabel();
 }
+/* after the last planned set of an exercise, the main button moves on to the next one */
+function nextLabel(){ const it = item(cur), nx = nextUndone(); $('nextBtn').textContent = it && it.done >= it.sets && nx ? 'Next exercise' : 'Next set'; }
 $('copyBtn').addEventListener('click', () => {
   const t = $('code').value; if (!t) return;
   const done = ok => { $('copyStatus').textContent = ok ? 'Copied. Paste it in Daily Vitals → Gym.' : 'Select the code above and copy it.'; };
@@ -231,17 +311,23 @@ $('copyBtn').addEventListener('click', () => {
 });
 $('startBtn').addEventListener('click', start);
 $('stopBtn').addEventListener('click', stop);
-$('nextBtn').addEventListener('click', () => { $('summary').hidden = true; $('setup').hidden = false; start(); });
-$('changeBtn').addEventListener('click', () => { $('summary').hidden = true; $('setup').hidden = false; $('startBtn').disabled = false; window.scrollTo(0, 0); });
+function toSetup(){ $('summary').hidden = true; $('setup').hidden = false; showEx(); renderPlan(); window.scrollTo(0, 0); }
+$('nextBtn').addEventListener('click', () => {
+  const it = item(cur), nx = nextUndone();
+  if (it && it.done >= it.sets && nx) { choose(nx.x, nx.k); toSetup(); return; }   // new exercise: see the camera tip first
+  toSetup(); start();
+});
+$('changeBtn').addEventListener('click', () => { toSetup(); openPicker(); });
 document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && running && !wake) { try { wake = await navigator.wakeLock.request('screen'); } catch (e) {} } });
 
 function boot(){
   if (!window.FormEngine || !window.EXERCISES) { setTimeout(boot, 50); return; }
-  fillSelect(); syncSeg();
+  if (!EX[prefs.ex]) prefs.ex = 'hack';
+  loadPlan(); showEx(); renderPlan(); syncSeg();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('setupStatus').textContent = 'This browser can’t open the camera here. Open the page in Safari or Chrome.'; $('setupStatus').classList.add('err'); }
   if (window.tf) loadModel(() => {}).catch(() => {});   // start downloading early
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 boot();
-window.__fc = { analyze:() => lastRes, track:() => track };
+window.__fc = { analyze:() => lastRes, track:() => track, plan:() => plan, cur:() => cur, summary:showSummary };
 })();

@@ -1,5 +1,5 @@
 /* Keeps the page, the model library and the 8 MB pose model on the phone, so the gym's signal doesn't matter. */
-const CACHE = 'form-check-live-v1';
+const CACHE = 'form-check-live-v2';
 const CORE = ['./', 'index.html', 'pose-runtime.js', 'form-engine.js', 'exercises.js', 'app.js', 'pose-model.json', 'manifest.webmanifest',
   'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'];
 self.addEventListener('install', e => {

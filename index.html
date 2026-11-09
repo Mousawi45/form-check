@@ -109,6 +109,51 @@ select{width:100%;min-height:54px;border-radius:14px;border:1.5px solid var(--li
 .steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 a{color:var(--accent);font-weight:700}
+
+/* plan, picker, evidence */
+.plan{display:flex;flex-direction:column;gap:6px}
+.pi{display:flex;align-items:center;gap:10px;min-height:56px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2);padding:6px 12px;text-align:left;width:100%}
+.pi[aria-pressed="true"]{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
+.pi .ps{flex:none;min-width:30px;font-weight:900;font-stretch:115%;color:var(--ink-2)}
+.pi .pn,.pickbtn .pn{flex:1;min-width:0;display:flex;flex-direction:column}
+.pi .pn b,.pickbtn .pn b{font-weight:800;overflow-wrap:anywhere}
+.pi .pn small,.pickbtn .pn small{color:var(--ink-2);font-size:13px}
+.pi .pk{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:900;border:1.5px solid var(--line)}
+.pi.done .pk{background:var(--go);color:var(--on-go);border-color:var(--go)}
+.pi.done .pn b{color:var(--ink-2)}
+.pickbtn{display:flex;align-items:center;gap:10px;min-height:60px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2);padding:8px 10px 8px 14px;text-align:left;width:100%}
+.pickbtn .pn b{font-size:18px}
+.pks{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:10px;background:var(--ink);color:var(--bg);font-weight:800;font-size:14px}
+.pks svg,.search svg{width:18px;height:18px}
+.sheet{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet-top{position:sticky;top:0;z-index:1;display:flex;gap:8px;align-items:center;background:var(--bg);padding:4px 0 8px}
+.search{position:relative;flex:1;display:block}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-2);pointer-events:none}
+.search input{width:100%;min-height:50px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font:inherit;font-size:17px;padding:0 12px 0 40px}
+.search input::placeholder{color:var(--ink-2)}
+.plist{display:flex;flex-direction:column;gap:16px}
+.pg{display:flex;flex-direction:column;gap:6px}
+.po{display:flex;flex-direction:column;align-items:flex-start;min-height:52px;justify-content:center;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:6px 12px;text-align:left}
+.po b{font-weight:800}
+.po small{color:var(--ink-2);font-size:13px}
+.po[aria-pressed="true"]{border-color:var(--go)}
+details.how summary{font-weight:800;min-height:40px;display:flex;align-items:center;cursor:pointer}
+details.how[open] summary{margin-bottom:6px}
+.evl{margin:0 0 8px;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.evl li{display:flex;flex-direction:column;gap:2px;font-size:14.5px;padding:8px 10px 8px 12px;border-radius:10px;background:var(--surface-2);border-left:4px solid var(--ink-2)}
+.evl li > span small{color:var(--ink-2)}
+.evl li > small,.issues small{display:block;font-size:12.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.evl li.k-must{border-left-color:var(--part)} .evl li.k-nice{border-left-color:var(--accent)} .evl li.k-flag{border-left-color:var(--flag)}
+.ev{font-weight:700;color:var(--ink)}
+.t-g{color:var(--go)} .t-s{color:var(--accent)} .t-p{color:var(--part)}
+.issues li span{min-width:0}
+.issues li.s i{background:var(--accent)} .issues li.q i{background:var(--ink-2)}
+.split .s{background:var(--accent);color:var(--on-accent)}
+.chip.s{background:color-mix(in srgb,var(--accent) 16%,var(--surface));border-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+.chip.p{background:color-mix(in srgb,var(--part) 18%,var(--surface));border-color:color-mix(in srgb,var(--part) 70%,transparent)}
+.chip.f::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--flag)}
+.chart .ds{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
+.last.s{background:var(--accent);color:var(--on-accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -117,22 +162,37 @@ a{color:var(--accent);font-weight:700}
 <section id="setup" class="screen">
   <div class="wrap">
     <div class="brand"><h1>FORM CHECK <b>LIVE</b></h1><span class="eyebrow">for Daily Vitals</span></div>
+    <div class="card" id="planCard" hidden>
+      <div class="row" style="justify-content:space-between;align-items:baseline"><span class="eyebrow" id="planTitle">Today</span><span class="note" id="planNote"></span></div>
+      <div class="plan" id="planList"></div>
+      <p class="note">From Daily Vitals. Tap an exercise to train it; each result lands on that exercise when you paste it back.</p>
+    </div>
     <div class="card">
-      <label class="f" for="exSel">Exercise</label>
-      <select id="exSel"></select>
+      <span class="f">Exercise</span>
+      <button type="button" class="pickbtn" id="pickBtn" aria-haspopup="dialog"><span class="pn"><b id="exName"></b><small id="exMeta"></small></span><span class="pks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>Search</span></button>
       <p class="tip" id="exTip"></p>
-      <ul class="checks" id="exChecks"></ul>
+      <details class="how"><summary>How to do it</summary><ul class="checks" id="exCues"></ul></details>
+      <details class="how" open><summary>What gets checked, with the evidence</summary><ul class="evl" id="exChecks"></ul>
+        <p class="note">Each rep is <b class="t-g">full</b>, a <b class="t-s">stretch partial</b> (stretched end reached, top missed: growth research rates it about as good as a full rep, so it still counts) or a <b class="t-p">partial</b> (stretched end missed). <a href="https://claude.ai/artifact/H5w4Hkk4P93VMvSpE3J2xz" target="_blank" rel="noopener">Full evidence report</a></p>
+      </details>
     </div>
     <div class="card">
       <div class="opts">
         <div class="opt-row"><span class="f" style="font-size:13px;font-weight:700;color:var(--ink-2)">Camera</span><div class="seg" role="group" aria-label="Camera"><button type="button" data-cam="environment" aria-pressed="true">Back</button><button type="button" data-cam="user" aria-pressed="false">Front</button></div></div>
         <div class="opt-row"><span style="font-size:13px;font-weight:700;color:var(--ink-2)">Sound</span><div class="seg" role="group" aria-label="Sound"><button type="button" data-snd="voice" aria-pressed="true">Voice</button><button type="button" data-snd="beep" aria-pressed="false">Beeps</button><button type="button" data-snd="off" aria-pressed="false">Off</button></div></div>
       </div>
-      <p class="note">Voice says each rep number, and “partial” or “check form” when a rep misses. Prop the phone up, tap Start, and you get 5 seconds to get into position.</p>
+      <p class="note">Voice says each rep number, plus “partial”, “stretch partial” or “check form” when a rep misses something. Prop the phone up, tap Start, and you get 5 seconds to get into position.</p>
     </div>
     <p class="status" id="setupStatus" aria-live="polite"></p>
   </div>
   <div class="dock"><div class="wrap"><button type="button" class="btn go" id="startBtn">Start</button></div></div>
+</section>
+
+<section id="picker" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Pick an exercise">
+  <div class="wrap">
+    <div class="sheet-top"><label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input id="q" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></label><button type="button" class="btn small" id="pickClose">Close</button></div>
+    <div class="plist" id="pickList"></div>
+  </div>
 </section>
 
 <section id="live" hidden aria-label="Live camera">
@@ -157,13 +217,13 @@ a{color:var(--accent);font-weight:700}
     <div class="card" id="sumCard"></div>
     <div class="card">
       <span class="eyebrow">Save it in Daily Vitals</span>
-      <ol class="steps"><li>Tap <b>Copy result</b>.</li><li>Open Daily Vitals → Gym, on this exercise.</li><li>Paste into <b>Paste a live result</b>. It fills your reps and saves the check with the set.</li></ol>
+      <ol class="steps"><li>Tap <b>Copy result</b>.</li><li>Open Daily Vitals → Gym.</li><li>Paste into <b>Paste a live result</b>. It lands on <b id="pasteWhere">this exercise</b>, fills your reps and saves the check with the set.</li></ol>
       <textarea class="code" id="code" readonly aria-label="Result code"></textarea>
       <div class="row"><button type="button" class="btn small go" id="copyBtn">Copy result</button><a class="btn small" id="dvLink" href="https://claude.ai/artifact/79HREb7uoFQKNjZaryAH33#gym" target="_blank" rel="noopener" style="text-decoration:none">Open Daily Vitals</a></div>
       <p class="status" id="copyStatus" aria-live="polite"></p>
     </div>
   </div>
-  <div class="dock"><div class="wrap"><button type="button" class="btn" id="changeBtn">Change exercise</button><button type="button" class="btn go" id="nextBtn">Next set</button></div></div>
+  <div class="dock"><div class="wrap"><button type="button" class="btn" id="changeBtn" style="font-size:16px">Other exercise</button><button type="button" class="btn go" id="nextBtn">Next set</button></div></div>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js" defer></script>
