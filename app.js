@@ -23,8 +23,9 @@ function parsePlan(str){
 }
 const item = k => plan && plan.it.find(i => i.k === k);
 const nextUndone = () => plan && (plan.it.find(i => i.done < i.sets) || null);
-function loadPlan(){
-  const m = /[#&]plan=([A-Za-z0-9_-]+)/.exec(location.hash), inc = m ? parsePlan(m[1]) : null;
+function loadPlan(text){
+  const m = /[#&]plan=([A-Za-z0-9_-]+)/.exec(text == null ? location.hash : text), inc = m ? parsePlan(m[1]) : null;
+  if (text != null && !inc) return false;
   const saved = prefs.plan && Date.now() - (prefs.plan.got || 0) < 16 * 3600e3 ? prefs.plan : null;
   if (inc) {
     if (saved && saved.d === inc.d && saved.wk === inc.wk) inc.it.forEach(i => { const o = saved.it.find(z => z.k === i.k && z.x === i.x); if (o) i.done = Math.max(i.done, o.done); });
@@ -34,9 +35,17 @@ function loadPlan(){
   else prefs.plan = null;
   if (plan) { prefs.plan = plan; if (cur) prefs.ex = item(cur).x; }
   prefs.cur = cur; savePrefs();
+  return !!inc;
 }
+/* Opened from the home-screen icon: paste the link copied in Daily Vitals. */
+const PASTE_HINT = $('planPasteMsg').innerHTML;
+$('planPaste').addEventListener('input', e => {
+  const v = e.target.value.trim(); if (!v) { $('planPasteMsg').innerHTML = PASTE_HINT; return; }
+  if (loadPlan(v)) { e.target.value = ''; $('planPasteMsg').innerHTML = PASTE_HINT; showEx(); renderPlan(); }
+  else $('planPasteMsg').textContent = 'That isn’t a workout link. In Daily Vitals tap Go live, then Copy link.';
+});
 function renderPlan(){
-  $('planCard').hidden = !plan; if (!plan) return;
+  $('planCard').hidden = !plan; $('planIn').hidden = !!plan; if (!plan) return;
   $('planTitle').textContent = plan.n;
   const left = plan.it.filter(i => i.done < i.sets).length;
   $('planNote').textContent = left ? left + ' of ' + plan.it.length + ' to go' : 'All done';

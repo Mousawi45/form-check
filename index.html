@@ -154,6 +154,8 @@ details.how[open] summary{margin-bottom:6px}
 .chip.f::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--flag)}
 .chart .ds{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
 .last.s{background:var(--accent);color:var(--on-accent)}
+.paste{width:100%;min-height:50px;border-radius:14px;border:1.5px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-size:16px;padding:0 12px}
+.paste::placeholder{color:var(--ink-2)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -162,6 +164,11 @@ details.how[open] summary{margin-bottom:6px}
 <section id="setup" class="screen">
   <div class="wrap">
     <div class="brand"><h1>FORM CHECK <b>LIVE</b></h1><span class="eyebrow">for Daily Vitals</span></div>
+    <div class="card" id="planIn">
+      <label class="f" for="planPaste">Today’s workout</label>
+      <input class="paste" id="planPaste" type="text" placeholder="Paste the workout link from Daily Vitals" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+      <p class="note" id="planPasteMsg" aria-live="polite">In Daily Vitals → Gym, tap <b>Go live with today’s workout</b>. If it doesn’t open, tap <b>Copy link</b> and paste it here.</p>
+    </div>
     <div class="card" id="planCard" hidden>
       <div class="row" style="justify-content:space-between;align-items:baseline"><span class="eyebrow" id="planTitle">Today</span><span class="note" id="planNote"></span></div>
       <div class="plan" id="planList"></div>
